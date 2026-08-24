@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>调音器</title>
+<style>
+  :root {
+    --bg: #1A1A2E;
+    --surface: #16213E;
+    --on-surface: #E0E0E0;
+    --muted: #B0B0B0;
+    --placeholder: #555555;
+    --tick: #666666;
+    --green: #4CAF50;
+    --red: #E53935;
+    --blue: #1E88E5;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--on-surface);
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", Roboto, sans-serif;
+    overflow: hidden;
+  }
+
+  .app {
+    height: 100vh;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 32px 24px 24px;
+    gap: 8px;
+  }
+
+  .title {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--on-surface);
+    padding-top: 8px;
+  }
+
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    width: 100%;
+    max-width: 480px;
+  }
+
+  .note-circle {
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .note-text {
+    font-size: 56px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--placeholder);
+  }
+  .note-text.detected { color: var(--green); }
+  /* 含升号符（如 A#4）时稍小 */
+  .note-text.long { font-size: 48px; }
+
+  .freq-text {
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--muted);
+    min-height: 24px;
+  }
+
+  .meter-wrap {
+    width: 100%;
+  }
+  .meter {
+    position: relative;
+    width: 100%;
+    height: 80px;
+    border-radius: 12px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .meter canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .status-text {
+    text-align: center;
+    font-size: 16px;
+    font-weight: 500;
+    min-height: 22px;
+    margin-top: 8px;
+  }
+
+  .btn {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    border: none;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    background: var(--green);
+    transition: background .2s;
+    touch-action: manipulation;
+  }
+  .btn.recording { background: var(--red); }
+  .btn:active { filter: brightness(1.15); }
+
+  .hint {
+    font-size: 11px;
+    color: var(--tick);
+    text-align: center;
+    max-width: 100%;
+    word-break: break-all;
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <div class="title">调音器</div>
+
+    <div class="main">
+      <div class="note-circle">
+        <div id="noteText" class="note-text">--</div>
+      </div>
+
+      <div id="freqText" class="freq-text"></div>
+
+      <div class="meter-wrap">
+        <div class="meter"><canvas id="meter"></canvas></div>
+        <div id="statusText" class="status-text"></div>
+      </div>
+    </div>
+
+    <button id="recordBtn" class="btn">开始</button>
+    <div class="hint">点「开始」并授予麦克风权限后，对着麦克风弹奏即可调音</div>
+  </div>
+
+<script>
+"use strict";
+
+/* ======================== 音高检测算法（移植自 PitchDetector.kt） ======================== */
+
+const MIN_FREQUENCY = 65;    // C2
+const MAX_FREQUENCY = 2093;  // C7
+const NOTE_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+
+/**
+ * YIN 算法（累计均值归一化差函数）检测基频，输入为 -1~1 的浮点 PCM。
+ * 相比自相关法，CMNDF 能天然消除八度(次倍频)错误。
+ */
+function detectFrequency(samples, sampleRate) {
+  const n = samples.length;
+  const maxLag = Math.floor(sampleRate / MIN_FREQUENCY);
+  const minLag = Math.floor(sampleRate / MAX_FREQUENCY);
+
+  // 需要至少约 2 个完整周期，否则无法稳定锁定基频
+  if (maxLag >= n) return 0;
+
+  // YIN 步骤1：差函数 d(tau) = sum((x[t] - x[t+tau])^2)
+  const d = new Float64Array(maxLag + 2);
+  for (let tau = 0; tau <= maxLag; tau++) {
+    let sum = 0;
+    const m = n - tau;
+    for (let i = 0; i < m; i++) {
+      const diff = samples[i] - samples[i + tau];
+      sum += diff * diff;
+    }
+    d[tau] = sum;
+  }
+
+  // YIN 步骤2：累计均值归一化差函数 d'(tau)
+  const cmndf = new Float64Array(maxLag + 1);
+  cmndf[0] = 1;
+  {
+    let running = 0;
+    for (let tau = 1; tau <= maxLag; tau++) {
+      running += d[tau];
+      cmndf[tau] = running > 0 ? d[tau] * tau / running : 1;
+    }
+  }
+
+  // YIN 步骤3：找第一个低于阈值的局部最小谷（即基频周期），下限不低于 minLag
+  const threshold = 0.12;
+  let bestTau = -1;
+  for (let tau = minLag; tau <= maxLag; tau++) {
+    if (cmndf[tau] < threshold) {
+      // 在谷底附近迭代取更小的周期邻域（进一步消除八度歧义）
+      while (tau + 1 <= maxLag && cmndf[tau + 1] < cmndf[tau]) tau++;
+      bestTau = tau;
+      break;
+    }
+  }
+  // 若没有低于阈值的谷，则取全局最小的谷
+  if (bestTau < 0) {
+    let minV = 2;
+    for (let tau = minLag; tau <= maxLag; tau++) {
+      if (cmndf[tau] < minV) { minV = cmndf[tau]; bestTau = tau; }
+    }
+    // 全局最小也不够低就视为无音高
+    if (minV > 0.35) return 0;
+  }
+
+  // YIN 步骤4：抛物线插值提升亚采样精度
+  let refinedTau = bestTau;
+  if (bestTau > minLag && bestTau < maxLag) {
+    const a = cmndf[bestTau - 1];
+    const b = cmndf[bestTau];
+    const c = cmndf[bestTau + 1];
+    const denom = a - 2 * b + c;
+    if (Math.abs(denom) > 1e-12) {
+      const delta = 0.5 * (a - c) / denom;
+      if (delta > -1 && delta < 1) refinedTau = bestTau + delta;
+    }
+  }
+
+  return sampleRate / refinedTau;
+}
+
+/** 检测音高：返回 {freq, note, cents, detected} */
+function detectPitch(samples, sampleRate) {
+  if (samples.length < sampleRate / MIN_FREQUENCY) {
+    return { freq: 0, note: "--", cents: 0, detected: false };
+  }
+  const freq = detectFrequency(samples, sampleRate);
+  if (!(freq >= MIN_FREQUENCY && freq <= MAX_FREQUENCY * 1.02)) {
+    return { freq: 0, note: "--", cents: 0, detected: false };
+  }
+
+  // 频率 -> 音符 + 偏差
+  const a4 = 440;
+  const a4Midi = 69;
+  const midi = 12 * Math.log2(freq / a4) + a4Midi;
+  const nearest = Math.round(midi);
+  const cents = (midi - nearest) * 100;
+
+  const idx = ((nearest % 12) + 12) % 12;
+  const octave = Math.floor(nearest / 12) - 1;
+  const note = NOTE_NAMES[idx] + octave;
+
+  return { freq, note, cents, detected: true };
+}
+
+/* ======================== 调音表盘绘制（复刻 Compose Canvas） ======================== */
+
+const meterCanvas = document.getElementById("meter");
+const meterCtx = meterCanvas.getContext("2d");
+let meterDPR = 1;
+
+function sizeMeter() {
+  const rect = meterCanvas.getBoundingClientRect();
+  meterDPR = (window.devicePixelRatio || 1);
+  meterCanvas.width = Math.max(1, Math.round(rect.width * meterDPR));
+  meterCanvas.height = Math.max(1, Math.round(rect.height * meterDPR));
+}
+
+function drawMeter(cents, detected) {
+  const W = meterCanvas.width, H = meterCanvas.height;
+  const ctx = meterCtx;
+  ctx.clearRect(0, 0, W, H);
+
+  const pad = 20 * meterDPR;
+  const centerX = W / 2;
+  const centerY = H / 2;
+  const meterWidth = W - 2 * pad;
+
+  // 背景刻度线：-50 到 +50，每 5 cents 一格（共 21 格，第5/10/15/20格为大刻度）
+  const tickCount = 20; // 0..20 => 21 条
+  ctx.strokeStyle = getCss("--tick");
+  for (let i = 0; i <= tickCount; i++) {
+    const x = pad + (meterWidth * i / tickCount);
+    const isMajor = i % 5 === 0;
+    const th = (isMajor ? 30 : 15) * meterDPR;
+    ctx.lineWidth = (isMajor ? 2 : 1) * meterDPR;
+    ctx.beginPath();
+    ctx.moveTo(x, centerY - th / 2);
+    ctx.lineTo(x, centerY + th / 2);
+    ctx.stroke();
+  }
+
+  // 绿色中心区域 ±5 cents
+  const gStart = centerX - meterWidth * 0.05;
+  const gEnd = centerX + meterWidth * 0.05;
+  ctx.fillStyle = getCss("--green") + "4D"; // 30% alpha
+  ctx.fillRect(gStart, centerY - 25 * meterDPR, gEnd - gStart, 50 * meterDPR);
+
+  // 中心线
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 2 * meterDPR;
+  ctx.beginPath();
+  ctx.moveTo(centerX, centerY - 28 * meterDPR);
+  ctx.lineTo(centerX, centerY + 28 * meterDPR);
+  ctx.stroke();
+
+  // 指针
+  if (detected) {
+    const clamped = Math.max(-50, Math.min(50, cents));
+    const pointerX = centerX + (clamped / 50) * (meterWidth / 2);
+    let pc = getCss("--green");
+    if (Math.abs(clamped) >= 5) pc = clamped > 0 ? getCss("--red") : getCss("--blue");
+
+    // 指针三角形
+    ctx.fillStyle = pc;
+    ctx.beginPath();
+    ctx.moveTo(pointerX, centerY - 32 * meterDPR);
+    ctx.lineTo(pointerX - 8 * meterDPR, centerY - 20 * meterDPR);
+    ctx.lineTo(pointerX + 8 * meterDPR, centerY - 20 * meterDPR);
+    ctx.closePath();
+    ctx.fill();
+
+    // 指针圆点
+    ctx.beginPath();
+    ctx.arc(pointerX, centerY + 20 * meterDPR, 10 * meterDPR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function getCss(varName) {
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+}
+
+/* ======================== 状态显示 ======================== */
+
+const noteEl = document.getElementById("noteText");
+const freqEl = document.getElementById("freqText");
+const statusEl = document.getElementById("statusText");
+const recordBtn = document.getElementById("recordBtn");
+
+let lastNote = "--";
+let lastCents = 0;
+let detected = false;
+
+function updateUI(r) {
+  if (r.detected) {
+    if (lastNote !== r.note) {
+      lastNote = r.note;
+      noteEl.textContent = r.note;
+      noteEl.classList.remove("long");
+      if (r.note.length > 2) noteEl.classList.add("long");
+      noteEl.classList.add("detected");
+    }
+    freqEl.textContent = r.freq.toFixed(1) + " Hz";
+    lastCents = r.cents;
+    detected = true;
+
+    const abs = Math.abs(r.cents);
+    let txt, col;
+    if (abs < 5) { txt = "准确"; col = "var(--green)"; }
+    else if (r.cents > 0) { txt = "偏高 " + Math.round(r.cents) + "¢"; col = "var(--red)"; }
+    else { txt = "偏低 " + Math.round(Math.abs(r.cents)) + "¢"; col = "var(--blue)"; }
+    statusEl.textContent = txt;
+    statusEl.style.color = col;
+  } else {
+    lastNote = "--";
+    noteEl.textContent = "--";
+    noteEl.classList.remove("detected", "long");
+    freqEl.textContent = "";
+    statusEl.textContent = "";
+    lastCents = 0;
+    detected = false;
+  }
+}
+
+/* ======================== 音频录制（浏览器麦克风） ======================== */
+
+let audioCtx = null;
+let audioStream = null;
+let processor = null;
+let source = null;
+let isRecording = false;
+
+// 简单平滑，避免抖动
+let smoothCents = 0;
+
+async function startRecording() {
+  try {
+    audioStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false
+      }
+    });
+  } catch (e) {
+    statusEl.textContent = "无法访问麦克风，请检查权限";
+    statusEl.style.color = "var(--red)";
+    return;
+  }
+
+  const FC = window.AudioContext || window.webkitAudioContext;
+  audioCtx = new FC({ sampleRate: 44100 });
+  source = audioCtx.createMediaStreamSource(audioStream);
+
+  // 用 ScriptProcessor 获取原始 PCM 数据（兼容性最好）
+  const bufSize = 2048;
+  processor = audioCtx.createScriptProcessor(bufSize, 1, 1);
+  const sampleRate = audioCtx.sampleRate;
+
+  processor.onaudioprocess = (e) => {
+    // 麦克风输入通常在第0通道
+    const ch = e.inputBuffer.getChannelData(0);
+    const r = detectPitch(ch, sampleRate);
+    if (r.detected) {
+      // 轻微平滑
+      smoothCents = smoothCents * 0.8 + r.cents * 0.2;
+      r.cents = smoothCents;
+    } else {
+      smoothCents = 0;
+    }
+    updateUI(r);
+    drawMeter(r.detected ? r.cents : 0, r.detected);
+  };
+
+  source.connect(processor);
+  if (audioCtx.destination && audioCtx.destination.channelCount >= 1) {
+    // 不接 destination 也可以，但某些浏览器要求 graph 有输出，这里静音连接
+    try { processor.connect(audioCtx.destination); } catch (_) {}
+  }
+
+  isRecording = true;
+  recordBtn.textContent = "停止";
+  recordBtn.classList.add("recording");
+}
+
+function stopRecording() {
+  if (processor) { try { processor.disconnect(); } catch(_){} processor = null; }
+  if (source) { try { source.disconnect(); } catch(_){} source = null; }
+  if (audioStream) { audioStream.getTracks().forEach(t => t.stop()); audioStream = null; }
+  if (audioCtx) { try { audioCtx.close(); } catch(_){} audioCtx = null; }
+  isRecording = false;
+  recordBtn.textContent = "开始";
+  recordBtn.classList.remove("recording");
+  smoothCents = 0;
+  updateUI({ detected: false });
+  drawMeter(0, false);
+}
+
+recordBtn.addEventListener("click", () => {
+  if (isRecording) stopRecording(); else startRecording();
+});
+
+/* ======================== 初始化 ======================== */
+
+window.addEventListener("resize", () => { sizeMeter(); drawMeter(lastCents, detected); });
+sizeMeter();
+drawMeter(0, false);
+</script>
+</body>
+</html>
