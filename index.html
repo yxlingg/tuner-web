@@ -137,7 +137,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: clamp(5px, 1.1vh, 9px);
+    gap: clamp(4px, 0.9vh, 7px);
   }
 
   .note-circle {
@@ -153,7 +153,7 @@
   .note-text.long { font-size: clamp(26px, 9vh, 38px); }
   .target-label { font-size: 13px; color: var(--muted); margin-top: 4px; min-height: 18px; }
 
-  .freq-text { font-size: clamp(15px, 4vh, 18px); font-weight: 500; color: var(--muted); min-height: 24px; }
+  .freq-text { font-size: clamp(15px, 4vh, 18px); font-weight: 500; color: var(--muted); min-height: 19px; }
 
   .meter-wrap { width: 100%; display: flex; flex-direction: column; align-items: center; }
   .meter {
@@ -541,15 +541,19 @@ function drawMeter(cents, detected) {
   ctx.clearRect(0, 0, W, H);
   const dpr = meterDPR;
   if (H < 10 * dpr) return;
-  const pad = 18 * dpr;
-  const centerX = W / 2, centerY = H / 2;
+  const pad = 16 * dpr;
+  const centerX = W / 2;
   const meterWidth = W - 2 * pad;
-  // 元素高度随画布高度等比缩放，填满盒子、消除顶部空旷
-  const majorHalf = H * 0.36;
-  const minorHalf = H * 0.26;
-  const zoneHalf = H * 0.27;
-  const needleHalf = H * 0.30;
-  const dotR = Math.max(6, H * 0.09);
+  // 刻度区从顶部锚定，整体靠上放置，消除顶部空白
+  const tickTop = 4 * dpr;                       // 主刻度顶端
+  const majorHalf = H * 0.30;                    // 主刻度半高
+  const minorHalf = H * 0.21;                    // 次刻度半高
+  const midY = tickTop + majorHalf;              // 中心线 y
+  const zoneHalf = H * 0.22;                     // 绿色区半高
+  const needleHalf = H * 0.28;                   // 中心线/指针半长
+  const dotR = Math.max(6, H * 0.085);           // 指针圆点
+  const numY = H - 5 * dpr;                      // 底部音分数基线
+  const numFont = Math.max(11, H * 0.14);        // 音分数(调大一点)
 
   // 背景刻度（-50..+50，每 5¢ 一格）
   const tickCount = 20;
@@ -559,26 +563,26 @@ function drawMeter(cents, detected) {
     ctx.strokeStyle = getCss("--tick");
     ctx.lineWidth = (isMajor ? 2 : 1) * dpr;
     ctx.beginPath();
-    const top = centerY - (isMajor ? majorHalf : minorHalf);
-    const bot = centerY + (isMajor ? majorHalf : minorHalf);
+    const top = midY - (isMajor ? majorHalf : minorHalf);
+    const bot = midY + (isMajor ? majorHalf : minorHalf);
     ctx.moveTo(x, top); ctx.lineTo(x, bot); ctx.stroke();
     if (isMajor) {
       const cv = (i - 10) * 5;
       ctx.fillStyle = getCss("--tick-label");
-      ctx.font = Math.max(10, H * 0.12) + "px sans-serif";
+      ctx.font = numFont + "px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(cv, x, H - 8 * dpr);
+      ctx.fillText(cv, x, numY);
     }
   }
 
   // 中心绿色 ±5¢
   const gStart = centerX - meterWidth * 0.05, gEnd = centerX + meterWidth * 0.05;
   ctx.fillStyle = getCss("--green") + "55";
-  ctx.fillRect(gStart, centerY - zoneHalf, gEnd - gStart, zoneHalf * 2);
+  ctx.fillRect(gStart, midY - zoneHalf, gEnd - gStart, zoneHalf * 2);
 
   // 中心线
   ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2 * dpr;
-  ctx.beginPath(); ctx.moveTo(centerX, centerY - needleHalf); ctx.lineTo(centerX, centerY + needleHalf); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(centerX, midY - needleHalf); ctx.lineTo(centerX, midY + needleHalf); ctx.stroke();
 
   // 指针
   if (detected) {
@@ -588,11 +592,11 @@ function drawMeter(cents, detected) {
     if (Math.abs(clamped) >= 5) pc = clamped > 0 ? getCss("--red") : getCss("--blue");
     ctx.fillStyle = pc;
     ctx.beginPath();
-    ctx.moveTo(px, centerY - needleHalf);
-    ctx.lineTo(px - dotR * 0.8, centerY - needleHalf * 0.6);
-    ctx.lineTo(px + dotR * 0.8, centerY - needleHalf * 0.6);
+    ctx.moveTo(px, midY - needleHalf);
+    ctx.lineTo(px - dotR * 0.8, midY - needleHalf * 0.6);
+    ctx.lineTo(px + dotR * 0.8, midY - needleHalf * 0.6);
     ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.arc(px, centerY + needleHalf * 0.55, dotR, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(px, midY + needleHalf * 0.55, dotR, 0, Math.PI * 2); ctx.fill();
   }
 }
 
