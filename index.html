@@ -23,24 +23,37 @@
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
   html, body {
+    height: 100%;
     background: var(--bg);
     color: var(--on-surface);
     font-family: -apple-system, "PingFang SC", "Microsoft YaHei", Roboto, sans-serif;
   }
-  body { overflow-y: auto; }
+  body { overflow: hidden; }
 
   .app {
-    min-height: 100dvh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 24px 20px 32px;
-    gap: 18px;
+    /* 用 svh（不含手机浏览器上/下工具栏的最小视口）保证一屏内不裁到底部按钮，
+       dvh/vh 作为低版本浏览器兜底 */
+    height: 100vh;
+    height: 100svh;
+    width: 100%;
     max-width: 480px;
     margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    padding: clamp(8px, 2vh, 16px) 16px clamp(8px, 2vh, 14px);
+    gap: clamp(6px, 1.6vh, 12px);
   }
 
-  .title { font-size: 26px; font-weight: 700; color: var(--on-surface); letter-spacing: 2px; }
+  /* 三段式：顶部固定 / 中部自适应(内部滚动) / 底部固定 */
+  .top { display: flex; flex-direction: column; gap: clamp(6px, 1.4vh, 12px); flex: none; min-height: 0; }
+  .stage {
+    flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    display: flex; flex-direction: column; align-items: center; padding: 2px 0;
+  }
+  .stage > .main { margin: auto 0; }
+  .foot { display: flex; flex-direction: column; align-items: center; gap: 8px; flex: none; }
+
+  .title { font-size: clamp(20px, 5vw, 26px); font-weight: 700; color: var(--on-surface); letter-spacing: 2px; }
 
   /* 顶栏：乐器选择 + A4参考 */
   .controls {
@@ -84,15 +97,21 @@
   .stab input[type=range] { flex: 1; }
   .stab .lbl { white-space: nowrap; width: 56px; text-align: center; font-size: 13px; color: var(--tick-label); }
 
-  /* 弦标行 */
+  /* 弦标行：单行横向滑动（古筝等弦多时也只需一行） */
   .strings {
     width: 100%;
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    align-items: center;
     gap: 8px;
-    justify-content: center;
-    min-height: 34px;
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    padding: 4px 0;
+    min-height: 36px;
   }
+  .strings::-webkit-scrollbar { height: 0; }
   .string-chip {
     background: var(--surface);
     border: 1px solid #38385A;
@@ -103,6 +122,8 @@
     cursor: pointer;
     transition: all .15s;
     touch-action: manipulation;
+    flex: none; white-space: nowrap;
+    scroll-snap-align: start;
   }
   .string-chip.active {
     border-color: var(--green);
@@ -116,31 +137,31 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 14px;
+    gap: clamp(8px, 1.6vh, 14px);
   }
 
   .note-circle {
-    width: 150px; height: 150px; border-radius: 50%;
+    width: clamp(84px, 26vh, 150px); height: clamp(84px, 26vh, 150px); border-radius: 50%;
     background: var(--surface);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
   }
   .note-text {
-    font-size: 52px; font-weight: 700; line-height: 1;
+    font-size: clamp(34px, 13vh, 52px); font-weight: 700; line-height: 1;
     color: var(--placeholder);
   }
   .note-text.detected { color: var(--green); }
-  .note-text.long { font-size: 42px; }
+  .note-text.long { font-size: clamp(30px, 10vh, 42px); }
   .target-label { font-size: 13px; color: var(--muted); margin-top: 4px; min-height: 18px; }
 
-  .freq-text { font-size: 18px; font-weight: 500; color: var(--muted); min-height: 24px; }
+  .freq-text { font-size: clamp(15px, 4vh, 18px); font-weight: 500; color: var(--muted); min-height: 24px; }
 
   .meter-wrap { width: 100%; }
   .meter {
-    position: relative; width: 100%; height: 120px;
+    position: relative; width: 100%; height: clamp(78px, 18vh, 120px);
     border-radius: 12px; background: var(--surface); overflow: hidden;
   }
   .meter canvas { width: 100%; height: 100%; display: block; }
-  .status-text { text-align: center; font-size: 17px; font-weight: 600; min-height: 24px; margin-top: 10px; }
+  .status-text { text-align: center; font-size: clamp(16px, 4vh, 17px); font-weight: 600; min-height: 24px; margin-top: clamp(2px, 1vh, 10px); }
 
   .btnrow { display: flex; gap: 14px; align-items: center; }
   .btn {
@@ -204,6 +225,7 @@
 </head>
 <body>
   <div class="app">
+    <div class="top">
     <div class="titlebar">
       <div class="title">调音器</div>
       <button class="manual-btn" data-help="intro">📖 使用说明</button>
@@ -232,11 +254,13 @@
     </div>
 
     <div class="strings-head">
-      <span class="manual-btn" style="font-size:13px;padding:6px 12px;border-color:var(--tick);color:var(--muted);">琴弦</span>
+      <span class="manual-btn" style="font-size:13px;padding:6px 12px;border-color:var(--tick);color:var(--muted);">琴弦 · 左右滑动</span>
       <button class="help" data-help="strings" aria-label="琴弦按钮说明">?</button>
     </div>
     <div class="strings" id="stringsRow"></div>
+    </div><!-- /top -->
 
+    <div class="stage">
     <div class="main">
       <div class="note-circle">
         <div id="noteText" class="note-text">--</div>
@@ -253,7 +277,9 @@
         <button class="help" data-help="meter" aria-label="表盘说明">?</button>
       </div>
     </div>
+    </div><!-- /stage -->
 
+    <div class="foot">
     <div class="btnrow">
       <button id="playBtn" class="btn accent">▶ 标准音</button>
       <button class="help" data-help="play" aria-label="标准音说明">?</button>
@@ -261,6 +287,7 @@
       <button class="help" data-help="record" aria-label="开始说明">?</button>
     </div>
     <div class="hint">点「开始」并允许麦克风权限后，对着麦克风弹奏即可调音。多弦乐器请一次只拨一根弦；点弦标或「标准音」可播放对照音。每个功能旁的小问号都可查看详细说明。</div>
+    </div><!-- /foot -->
   </div>
 
   <!-- 说明弹窗 -->
