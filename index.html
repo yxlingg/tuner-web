@@ -141,16 +141,16 @@
   }
 
   .note-circle {
-    width: clamp(84px, 26vh, 150px); height: clamp(84px, 26vh, 150px); border-radius: 50%;
+    width: clamp(78px, 22vh, 132px); height: clamp(78px, 22vh, 132px); border-radius: 50%;
     background: var(--surface);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
   }
   .note-text {
-    font-size: clamp(34px, 13vh, 52px); font-weight: 700; line-height: 1;
+    font-size: clamp(30px, 11vh, 46px); font-weight: 700; line-height: 1;
     color: var(--placeholder);
   }
   .note-text.detected { color: var(--green); }
-  .note-text.long { font-size: clamp(30px, 10vh, 42px); }
+  .note-text.long { font-size: clamp(26px, 9vh, 38px); }
   .target-label { font-size: 13px; color: var(--muted); margin-top: 4px; min-height: 18px; }
 
   .freq-text { font-size: clamp(15px, 4vh, 18px); font-weight: 500; color: var(--muted); min-height: 24px; }
@@ -173,8 +173,6 @@
   .btn.recording { background: var(--red); }
   .btn.accent { background: var(--amber); color: #241c01; }
   .btn:active { filter: brightness(1.15); }
-
-  .hint { font-size: 12px; color: var(--tick-label); text-align: center; line-height: 1.6; max-width: 100%; word-break: break-all; }
 
   /* 顶栏：标题 + 使用说明总入口 */
   .titlebar { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -286,7 +284,6 @@
       <button id="recordBtn" class="btn round">开始</button>
       <button class="help" data-help="record" aria-label="开始说明">?</button>
     </div>
-    <div class="hint">点「开始」并允许麦克风权限后，对着麦克风弹奏即可调音。多弦乐器请一次只拨一根弦；点弦标或「标准音」可播放对照音。每个功能旁的小问号都可查看详细说明。</div>
     </div><!-- /foot -->
   </div>
 
@@ -740,6 +737,7 @@ const MANUALS = {
       "<li><b>② 点「开始」：</b>点下方大圆按钮，并<b class='warn'>允许使用麦克风</b>。</li>" +
       "<li><b>③ 弹一根弦：</b>对准麦克风，一次只弹一根弦。</li>" +
       "<li><b>④ 看表盘：</b>下方大表盘指针停在<b class='hl'>中间绿色区</b>、显示「准确」，就说明这根弦调准了。调完一根再调下一根。</li></ul>" +
+      "<p>你也可以<b>点任一琴弦按钮</b>或<b>『标准音』</b>，播放这根弦的对照音来帮你对音。</p>" +
       "<p>本页每个功能旁都有一个<b>小问号 &#63;</b>，点它可查看这一项单独的详细说明。</p>" },
 
   preset: { title: "乐器选择",
