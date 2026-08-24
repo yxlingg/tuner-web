@@ -137,7 +137,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: clamp(8px, 1.6vh, 14px);
+    gap: clamp(5px, 1.1vh, 9px);
   }
 
   .note-circle {
@@ -155,9 +155,10 @@
 
   .freq-text { font-size: clamp(15px, 4vh, 18px); font-weight: 500; color: var(--muted); min-height: 24px; }
 
-  .meter-wrap { width: 100%; }
+  .meter-wrap { width: 100%; display: flex; flex-direction: column; align-items: center; }
   .meter {
-    position: relative; width: 100%; height: clamp(78px, 18vh, 120px);
+    position: relative; width: 100%; max-width: 92%;
+    height: clamp(64px, 14vh, 92px);
     border-radius: 12px; background: var(--surface); overflow: hidden;
   }
   .meter canvas { width: 100%; height: 100%; display: block; }
@@ -539,9 +540,16 @@ function drawMeter(cents, detected) {
   const W = meterCanvas.width, H = meterCanvas.height, ctx = meterCtx;
   ctx.clearRect(0, 0, W, H);
   const dpr = meterDPR;
+  if (H < 10 * dpr) return;
   const pad = 18 * dpr;
   const centerX = W / 2, centerY = H / 2;
   const meterWidth = W - 2 * pad;
+  // 元素高度随画布高度等比缩放，填满盒子、消除顶部空旷
+  const majorHalf = H * 0.36;
+  const minorHalf = H * 0.26;
+  const zoneHalf = H * 0.27;
+  const needleHalf = H * 0.30;
+  const dotR = Math.max(6, H * 0.09);
 
   // 背景刻度（-50..+50，每 5¢ 一格）
   const tickCount = 20;
@@ -551,26 +559,26 @@ function drawMeter(cents, detected) {
     ctx.strokeStyle = getCss("--tick");
     ctx.lineWidth = (isMajor ? 2 : 1) * dpr;
     ctx.beginPath();
-    const top = centerY - (isMajor ? 34 : 22) * dpr;
-    const bot = centerY + (isMajor ? 34 : 22) * dpr;
+    const top = centerY - (isMajor ? majorHalf : minorHalf);
+    const bot = centerY + (isMajor ? majorHalf : minorHalf);
     ctx.moveTo(x, top); ctx.lineTo(x, bot); ctx.stroke();
     if (isMajor) {
       const cv = (i - 10) * 5;
       ctx.fillStyle = getCss("--tick-label");
-      ctx.font = (11 * dpr) + "px sans-serif";
+      ctx.font = Math.max(10, H * 0.12) + "px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(cv, x, centerY + 52 * dpr);
+      ctx.fillText(cv, x, H - 8 * dpr);
     }
   }
 
   // 中心绿色 ±5¢
   const gStart = centerX - meterWidth * 0.05, gEnd = centerX + meterWidth * 0.05;
   ctx.fillStyle = getCss("--green") + "55";
-  ctx.fillRect(gStart, centerY - 26 * dpr, gEnd - gStart, 52 * dpr);
+  ctx.fillRect(gStart, centerY - zoneHalf, gEnd - gStart, zoneHalf * 2);
 
   // 中心线
   ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2 * dpr;
-  ctx.beginPath(); ctx.moveTo(centerX, centerY - 36 * dpr); ctx.lineTo(centerX, centerY + 36 * dpr); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(centerX, centerY - needleHalf); ctx.lineTo(centerX, centerY + needleHalf); ctx.stroke();
 
   // 指针
   if (detected) {
@@ -580,11 +588,11 @@ function drawMeter(cents, detected) {
     if (Math.abs(clamped) >= 5) pc = clamped > 0 ? getCss("--red") : getCss("--blue");
     ctx.fillStyle = pc;
     ctx.beginPath();
-    ctx.moveTo(px, centerY - 40 * dpr);
-    ctx.lineTo(px - 8 * dpr, centerY - 26 * dpr);
-    ctx.lineTo(px + 8 * dpr, centerY - 26 * dpr);
+    ctx.moveTo(px, centerY - needleHalf);
+    ctx.lineTo(px - dotR * 0.8, centerY - needleHalf * 0.6);
+    ctx.lineTo(px + dotR * 0.8, centerY - needleHalf * 0.6);
     ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.arc(px, centerY + 24 * dpr, 9 * dpr, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(px, centerY + needleHalf * 0.55, dotR, 0, Math.PI * 2); ctx.fill();
   }
 }
 
