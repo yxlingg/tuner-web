@@ -154,18 +154,73 @@
   .btn:active { filter: brightness(1.15); }
 
   .hint { font-size: 12px; color: var(--tick-label); text-align: center; line-height: 1.6; max-width: 100%; word-break: break-all; }
+
+  /* 顶栏：标题 + 使用说明总入口 */
+  .titlebar { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .manual-btn {
+    border: 1px solid var(--amber); color: var(--amber); background: transparent;
+    font-size: 14px; font-weight: 600; border-radius: 999px; padding: 8px 14px; cursor: pointer; font-family: inherit;
+  }
+  .manual-btn:active { background: rgba(242,177,52,.15); }
+
+  /* 小问号按钮 */
+  .help {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; flex: none; margin-left: 6px;
+    border: 1.5px solid var(--tick-label); color: var(--tick-label); background: none;
+    border-radius: 50%; font-size: 13px; line-height: 1; cursor: pointer; font-family: inherit; padding: 0;
+  }
+  .help:active { background: rgba(255,255,255,.12); }
+
+  .ctrl-group { display: inline-flex; align-items: center; }
+  .strings-head { width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; }
+
+  /* 说明弹窗（奶白底大字） */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6);
+    display: none; align-items: center; justify-content: center; z-index: 1000; padding: 16px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-card {
+    background: #FFFBF2; color: #32291a; border-radius: 16px; width: 100%; max-width: 520px;
+    max-height: 84dvh; display: flex; flex-direction: column; box-shadow: 0 12px 44px rgba(0,0,0,.45);
+  }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #e6e0d2; gap: 10px; }
+  .modal-title { font-size: 22px; font-weight: 700; color: #1c1205; line-height: 1.3; }
+  .modal-close {
+    width: 46px; height: 46px; flex: none; border: none; background: #f0e9d8; color: #4a3f2a;
+    border-radius: 50%; font-size: 26px; cursor: pointer; line-height: 1;
+  }
+  .modal-body { padding: 18px 20px 6px; overflow-y: auto; font-size: 19px; line-height: 1.75; color: #32291a; }
+  .modal-body p { margin: 0 0 14px; }
+  .modal-body h3 { font-size: 21px; margin: 6px 0 10px; color: #1c1205; }
+  .modal-body ul { margin: 0 0 14px; padding-left: 24px; }
+  .modal-body li { margin-bottom: 9px; }
+  .modal-body .hl { background: #f3ecd9; padding: 2px 7px; border-radius: 6px; font-weight: 700; }
+  .modal-body .warn { color: #b3541e; font-weight: 700; }
+  .modal-foot { padding: 12px 20px 20px; display: flex; justify-content: center; }
+  .modal-ok { border: none; background: #4CAF50; color: #fff; font-size: 20px; font-weight: 700; padding: 14px 40px; border-radius: 999px; cursor: pointer; }
 </style>
 </head>
 <body>
   <div class="app">
-    <div class="title">调音器</div>
+    <div class="titlebar">
+      <div class="title">调音器</div>
+      <button class="manual-btn" data-help="intro">📖 使用说明</button>
+    </div>
 
     <div class="controls">
-      <select id="presetSel" class="control-pill"></select>
-      <label class="control-pill">A4<small>基准</small>
-        <input id="a4Input" class="a4-input" type="number" value="440" min="415" max="466" step="1" inputmode="decimal">
-        <small>Hz</small>
-      </label>
+      <div class="ctrl-group">
+        <select id="presetSel" class="control-pill"></select>
+        <button class="help" data-help="preset" aria-label="乐器选择说明">?</button>
+      </div>
+      <div class="ctrl-group">
+        <label class="control-pill">A4<small>基准</small>
+          <input id="a4Input" class="a4-input" type="number" value="440" min="415" max="466" step="1" inputmode="decimal">
+          <small>Hz</small>
+        </label>
+        <button class="help" data-help="a4" aria-label="A4基准说明">?</button>
+      </div>
     </div>
 
     <div class="stab">
@@ -173,8 +228,13 @@
       <input id="stabRange" type="range" min="0" max="100" value="50">
       <span>稳定</span>
       <span class="lbl" id="stabVal">适中</span>
+      <button class="help" data-help="stability" aria-label="灵敏度说明">?</button>
     </div>
 
+    <div class="strings-head">
+      <span class="manual-btn" style="font-size:13px;padding:6px 12px;border-color:var(--tick);color:var(--muted);">琴弦</span>
+      <button class="help" data-help="strings" aria-label="琴弦按钮说明">?</button>
+    </div>
     <div class="strings" id="stringsRow"></div>
 
     <div class="main">
@@ -185,17 +245,34 @@
 
       <div id="freqText" class="freq-text"></div>
 
-      <div class="meter-wrap">
-        <div class="meter"><canvas id="meter"></canvas></div>
-        <div id="statusText" class="status-text"></div>
+      <div class="ctrl-group" style="width:100%;">
+        <div class="meter-wrap" style="flex:1;">
+          <div class="meter"><canvas id="meter"></canvas></div>
+          <div id="statusText" class="status-text"></div>
+        </div>
+        <button class="help" data-help="meter" aria-label="表盘说明">?</button>
       </div>
     </div>
 
     <div class="btnrow">
       <button id="playBtn" class="btn accent">▶ 标准音</button>
+      <button class="help" data-help="play" aria-label="标准音说明">?</button>
       <button id="recordBtn" class="btn round">开始</button>
+      <button class="help" data-help="record" aria-label="开始说明">?</button>
     </div>
-    <div class="hint">点「开始」并允许麦克风权限后，对着麦克风弹奏即可调音。多弦乐器请一次只拨一根弦；点弦标或「标准音」可播放对照音。</div>
+    <div class="hint">点「开始」并允许麦克风权限后，对着麦克风弹奏即可调音。多弦乐器请一次只拨一根弦；点弦标或「标准音」可播放对照音。每个功能旁的小问号都可查看详细说明。</div>
+  </div>
+
+  <!-- 说明弹窗 -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div class="modal-title" id="modalTitle">说明</div>
+        <button class="modal-close" id="modalClose">×</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-foot"><button class="modal-ok" id="modalOk">我知道了</button></div>
+    </div>
   </div>
 
 <script>
@@ -239,7 +316,25 @@ const PRESETS = [
       { label: "4弦 C2", note: "C2" }, { label: "3弦 G2", note: "G2" },
       { label: "2弦 D3", note: "D3" }, { label: "1弦 A3", note: "A3" } ] },
   { id: "erhu",       name: "二胡 · D A", strings: [
-      { label: "内弦 D4", note: "D4" }, { label: "外弦 A4", note: "A4" } ] }
+      { label: "内弦 D4", note: "D4" }, { label: "外弦 A4", note: "A4" } ] },
+  { id: "zheng",      name: "古筝 · 21弦 D调", strings: [
+      { label: "21弦 D2", note: "D2" }, { label: "20弦 E2", note: "E2" },
+      { label: "19弦 G2", note: "G2" }, { label: "18弦 A2", note: "A2" },
+      { label: "17弦 B2", note: "B2" }, { label: "16弦 D3", note: "D3" },
+      { label: "15弦 E3", note: "E3" }, { label: "14弦 G3", note: "G3" },
+      { label: "13弦 A3", note: "A3" }, { label: "12弦 B3", note: "B3" },
+      { label: "11弦 D4", note: "D4" }, { label: "10弦 E4", note: "E4" },
+      { label: "9弦 G4", note: "G4" }, { label: "8弦 A4", note: "A4" },
+      { label: "7弦 B4", note: "B4" }, { label: "6弦 D5", note: "D5" },
+      { label: "5弦 E5", note: "E5" }, { label: "4弦 G5", note: "G5" },
+      { label: "3弦 A5", note: "A5" }, { label: "2弦 B5", note: "B5" },
+      { label: "1弦 D6", note: "D6" } ] },
+  { id: "pipa",       name: "琵琶 · A D E a", strings: [
+      { label: "4弦 A2", note: "A2" }, { label: "3弦 D3", note: "D3" },
+      { label: "2弦 E3", note: "E3" }, { label: "1弦 A3", note: "A3" } ] },
+  { id: "liuqin",     name: "柳琴 · g d1 g1 d2", strings: [
+      { label: "4弦 G3", note: "G3" }, { label: "3弦 D4", note: "D4" },
+      { label: "2弦 G4", note: "G4" }, { label: "1弦 D5", note: "D5" } ] }
 ];
 
 /* ======================== 音名 / 频率换算 ======================== */
@@ -608,6 +703,80 @@ a4Input.addEventListener("change", () => {
 stabRange.addEventListener("input", () => {
   stability = parseInt(stabRange.value, 10);
   stabVal.textContent = (stability < 20 ? "灵敏" : stability < 60 ? "适中" : stability < 85 ? "较稳" : "最稳");
+});
+
+/* ======================== 使用说明书（大字弹窗） ======================== */
+const MANUALS = {
+  intro: { title: "调音器 · 使用说明",
+    html: "<p>欢迎使用<b class='hl'>调音器</b>。这是一款帮你把乐器调准音的小工具。一共四步：</p>" +
+      "<ul><li><b>① 选乐器：</b>在上方下拉里选你的乐器（如吉他、中阮、古筝）。</li>" +
+      "<li><b>② 点「开始」：</b>点下方大圆按钮，并<b class='warn'>允许使用麦克风</b>。</li>" +
+      "<li><b>③ 弹一根弦：</b>对准麦克风，一次只弹一根弦。</li>" +
+      "<li><b>④ 看表盘：</b>下方大表盘指针停在<b class='hl'>中间绿色区</b>、显示「准确」，就说明这根弦调准了。调完一根再调下一根。</li></ul>" +
+      "<p>本页每个功能旁都有一个<b>小问号 &#63;</b>，点它可查看这一项单独的详细说明。</p>" },
+
+  preset: { title: "乐器选择",
+    html: "<p>在这里选择你要调音的<b>乐器</b>。</p>" +
+      "<p><b>选对乐器的好处：</b><br>① 下面的<b>琴弦按钮会自动变成该乐器的标准定弦</b>；② 会帮你<b class='hl'>锁定正在调的弦</b>——偏差是相对这根弦算的，点亮哪根、偏多少一目了然。</p>" +
+      "<p><b>支持的乐器：</b>吉他、贝斯、尤克里里、小提琴、中提琴、大提琴、二胡、中阮、大阮、小阮、<b class='hl'>古筝、琵琶、柳琴</b>，以及通用的「半音阶 · 通用」模式。</p>" +
+      "<p>选「半音阶 · 通用」时，它按十二平均律识别任意音，不锁定特定弦，适合任意乐器或仅当音准表用。</p>" },
+
+  a4: { title: "A4 基准 440Hz（重点）",
+    html: "<p><b>A4基准 440Hz 是音高的「标准标尺」</b>，所有音符准不准，都是从它推算出来的。</p>" +
+      "<p>国际上把 <b class='hl'>A4 定为 440Hz</b>，程序以它为基准算出每一个音的标准频率，再和你弹的真实音高对比，得出偏高/偏低了几个音分（¢）。</p>" +
+      "<p><b>默认 440 就够了，一般不用改。</b></p>" +
+      "<p>只有在乐队/乐谱采用别的标准时才调：管弦乐团常用 <b>442</b>，某些风格用 <b>432</b>，可在 400~470 之间调整。</p>" +
+      "<p>你把这个数<b>调大</b>，所有音的「标准」整体变高；调小则整体变低。</p>" },
+
+  stability: { title: "灵敏 ⇄ 稳定",
+    html: "<p>这个滑条调节调音器的<b>响应快慢</b>。</p>" +
+      "<p><b>往左「灵敏」</b>：指针反应快，适合快速拨弦，但容易轻微晃动。</p>" +
+      "<p><b>往右「稳定」</b>：抗干扰更强、指针更稳，但会稍慢一拍，适合唱歌、泛音多的音色。</p>" +
+      "<p>拨弦类乐器用中间<b>「适中」</b>即可；人声或音色较散的，建议往「稳定」方向调一些。</p>" },
+
+  strings: { title: "琴弦按钮",
+    html: "<p>这一排按钮代表所选乐器的每一根弦（从<b class='hl'>低音</b>到<b class='hl'>高音</b>排列）。</p>" +
+      "<p><b>点任意一根</b>，会播放这根弦的<b>标准音</b>给你听，方便你对音、或照着调音表盘拧弦。</p>" +
+      "<p>弹奏时，<b>命中哪根弦，哪根就会亮起绿色</b>，帮你确认当前在调第几根。</p>" +
+      "<p class='warn'>小提示：吉他的低音弦、古筝/中阮/大阮/大提琴的低音区、贝斯等，手机/笔记本的小喇叭往往<b>放不响、听不清</b>。遇到这类低音弦，建议<b>戴耳机听</b>，或直接看大表盘指针来调，一样能调准。</p>" },
+
+  play: { title: "▶ 标准音按钮",
+    html: "<p>点它播放一个<b>标准音</b>，作为你调音的参照音。</p>" +
+      "<p>它播放的是<b>当前正在调的那根弦</b>的标准频率（正在识别时就播放识别到的那根）。把弦调到和它一致即可；再点一次停止。</p>" +
+      "<p class='warn'>低音弦（如大提琴C2、中阮G2、贝斯E1、古筝低音区）在手机小喇叭上听不清，建议戴耳机或直接看表盘。</p>" },
+
+  record: { title: "开始 / 停止",
+    html: "<p>这个大圆按钮用来<b>开、关麦克风识别</b>。</p>" +
+      "<p>点一下字变「停止」并变红＝正在收听；再点一下停止。</p>" +
+      "<p class='warn'>第一次点击会弹出授权询问，必须点「允许」使用麦克风，否则无法识别。</p>" +
+      "<p>停止后屏幕上的音高会被清空。建议在<b>安静环境</b>里调音，杂音太大可能干扰识别。</p>" },
+
+  meter: { title: "音符与表盘",
+    html: "<p><b>大音符</b>：当前识别到的音（或目标音），如 A4。</p>" +
+      "<p><b>频率数字</b>：实际音高的频率（赫兹 Hz），想精确看时用它。</p>" +
+      "<p><b>大表盘</b>：告诉你怎么才算准。</p>" +
+      "<ul><li>中间的<b>竖线</b>＝标准音位置；</li>" +
+      "<li>指针<b>偏左</b>=音偏低，<b>偏右</b>=音偏高；</li>" +
+      "<li>指针停在<b class='hl'>中间绿色区（&#8723;5音分）</b>=准确；</li>" +
+      "<li>指针<b>绿=准确</b>、红=偏高、蓝=偏低，表盘还标出偏离了几个音分（¢）。</li></ul>" }
+};
+
+const modalOverlay = document.getElementById("modalOverlay");
+const modalTitle = document.getElementById("modalTitle");
+const modalBody = document.getElementById("modalBody");
+function showManual(key) {
+  const m = MANUALS[key];
+  if (!m) return;
+  modalTitle.textContent = m.title;
+  modalBody.innerHTML = m.html;
+  modalOverlay.classList.add("open");
+}
+function closeModal() { modalOverlay.classList.remove("open"); }
+document.getElementById("modalClose").addEventListener("click", closeModal);
+document.getElementById("modalOk").addEventListener("click", closeModal);
+modalOverlay.addEventListener("click", (e) => { if (e.target === modalOverlay) closeModal(); });
+document.querySelectorAll("[data-help]").forEach(btn => {
+  btn.addEventListener("click", (e) => { e.stopPropagation(); showManual(btn.getAttribute("data-help")); });
 });
 
 /* ======================== 初始化 ======================== */
